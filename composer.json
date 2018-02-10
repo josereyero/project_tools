@@ -1,0 +1,18 @@
+{
+    "name": "reyero/project_tools",
+    "type": "drupal-drush",
+    "description": "Drupal / Drush development and deployment tools",
+    "keywords": ["drupal","drush", "ansible"],
+    "homepage": "https://github.com/josereyero/project_tools",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jose Reyero",
+            "homepage": "https://reyero.net",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=7.0"
+    },
+}
