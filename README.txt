@@ -83,7 +83,7 @@ $options['project_environments'][$project_name]['devel'] = [
     'site_alias' => '@myproject.devel',
     'reload_source' => 'production',
     // Modules to enable when the site is deployed / udpated
-    'environment_modules' => ['site_gronze_devel'],
+    'environment_modules' => ['myproject_site_env_devel'],
 ];
 
 
