@@ -13,6 +13,7 @@
         }
     ],
     "require": {
-        "php": ">=7.0"
+      "reyero/site_tools": "dev-master",
+      "php": ">=7.0"
     }
 }
