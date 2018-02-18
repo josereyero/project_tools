@@ -71,6 +71,10 @@ function project_tools_drush_command() {
       'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
   ];
 
+  $items['project-reload-and-update'] = [
+      'description' => 'Reload site database and run site update scripts',
+  ] + $items['project-reload'];
+
   $items['project-backup'] = [
       'description' => 'Reload site database and run site update scripts',
       'arguments' => [
@@ -97,12 +101,24 @@ function project_tools_drush_command() {
  *
  * List site status for all projects / environments.
  */
-function drush_project_tools_project_status() {
+function drush_project_tools_project_status($project_filter = NULL, $env_filter = NULL) {
   _drush_project_tools_include();
 
   foreach (project_tools_get_project_environments() as $project_name => $project_envs) {
+    // Filter out other projects if project filter set.
+    if ($project_filter && $project_name != $project_filter) continue;
+
+    // If this is a group of projects, skip status
+    $project_settings = project_tools_get_project_settings($project_name);
+    if (!empty($project_settings['group_projects'])) {
+      drush_print(dt("Skipping group project: @project (@group)", ['@project'=> $project_name, '@group' => implode(', ', $project_settings['group_projects'])]));
+      continue;
+    }
 
     foreach ($project_envs as $env_name => $environment) {
+      // Filter out other environments if env filter set.
+      if ($env_filter && $env_name != $env_filter) continue;
+
       $site_alias = $environment['site_alias'];
       drush_print(dt("Checking site status for @project/@environment: @alias", ['@project'=> $project_name, '@environment' => $env_name, '@alias' => $site_alias]));
       drush_print();
@@ -123,21 +139,10 @@ function drush_project_tools_project_update($project_name, $env_name) {
   _drush_project_tools_include();
 
   $project_name = $project_name ?: project_tools_get_default_project();
-  $environment = project_tools_get_environment($project_name, $env_name);
+  $project_settings = project_tools_get_project_settings($project_name);
 
-  $site_alias = $environment['site_alias'];
-
-  // Enable site_tools module just in case.
-  $commands = array();
-  $commands[] = ['pm-enable', ['site_tools']];
-  $commands[] = ['site-update'];
-
-  // Now call site-update script.
-  $options = [
-      'interactive' => TRUE,
-  ];
-
-  return _drush_project_tools_run_commands($site_alias, $commands, $options);
+  drush_print(dt('Updating project environment: @project/@environment.', ['@project' => $project_name, '@environment' => $env_name]));
+  $result = _drush_project_tools_project_update($project_name, $env_name);
 }
 
 /**
@@ -172,7 +177,6 @@ function drush_project_tools_project_deploy($project_name, $target_env) {
     case 'ansible':
       drush_print(dt("Deploying @project/@environment using Ansible.", $variables));
       drush_print();
-      project_tools_deploy_ansible($project_name, $target_env);
       project_tools_ansible_playbook($project_name, $target_env, 'deploy');
       break;
     default:
@@ -263,7 +267,7 @@ function drush_project_tools_project_reload($project_name, $target_env, $source_
     return drush_set_error("Cancelled!!!");
   }
 
-  // Skip backup is the target is not 'devel'
+  // Skip backup if the target is not 'devel'
   $skip_backup = drush_get_option('skip-backup', $target_env == 'devel');
 
   if (!$skip_backup) {
@@ -291,10 +295,26 @@ function drush_project_tools_project_reload($project_name, $target_env, $source_
     return drush_set_error("Cancelled!!!");
   }
 
-  $result = drush_project_tools_project_update($project_name, $target_env);
+}
 
-  if ($result === FALSE || !empty($result['error_status'])) {
-    return drush_set_error("Cancelled!!!");
+/**
+ * Drush command callback: project-reload-and-update
+ *
+ * @param string $project_name
+ *   Project name, if empty will fallback to default project.
+ * @param string $target_env
+ *   Target environment name, the one to reload into.
+ * @param string $source_env
+ *   Source environment, to reload from.
+ */
+function drush_project_tools_project_reload_and_update($project_name, $target_env, $source_env = NULL) {
+  $result = drush_project_tools_project_reload($project_name, $target_env, $source_env);
+  if (!_drush_project_tools_check_result($result)) {
+    return drush_set_error("Reload failed, cancelled site update!!!");
+  }
+  $result = drush_project_tools_project_update($project_name, $target_env);
+  if (!_drush_project_tools_check_result($result)) {
+    return drush_set_error("Failed site update!!!");
   }
 }
 
@@ -347,59 +367,12 @@ function drush_project_tools_project_backup($project_name, $env_name) {
 }
 
 /**
- * Run multiple drush commands through drush invoke process.
- *
- * @param $site_alias
- *   Alias of the site to run commands on.
- * @param array $commands
- *   Array of command name => arguments
- * @param array $options
- *   Mixed options as option_name => option_value
- *   - 'maintenance_mode' = TRUE to set maintenance mode during operation.
- *   - 'interactive' = TRUE to run in interactive mode.
- */
-function _drush_project_tools_run_commands($site_alias, array $commands, $options = array()) {
-  $options += [
-    'maintenance_mode' => FALSE,
-    'interactive' => FALSE,
-  ];
-
-  $return = TRUE;
-
-  if ($options['maintenance_mode']) {
-    project_tools_set_maintenance($site_alias, TRUE);
-  }
-
-  $commandline_options = $backend_options = array();
-
-  $backend_options['interactive'] = $options['interactive'];
-
-  foreach ($commands as $command) {
-    $command = array_merge($command, [[], []]);
-    list($command_name, $arguments, $commandline_options) = $command;
-
-    $result = drush_invoke_process($site_alias, $command_name, $arguments, $commandline_options);
-    if ($result === FALSE || !empty($result['error_status'])) {
-      drush_set_error(dt("Error running drush command: @command", ['@command' => $command_name]));
-      $return = FALSE;
-      break;
-    }
-  }
-
-  if ($options['maintenance_mode']) {
-    project_tools_set_maintenance($site_alias, FALSE);
-  }
-
-  return $return;
-}
-
-/**
  * Include libraries for this version.
  */
 function _drush_project_tools_include() {
   require_once __DIR__ . '/project_tools.inc.php';
-  $version = 'drupal' . drush_drupal_major_version();
-  require_once __DIR__ . '/project_tools.' . $version . '.inc';
+  //$version = 'drupal' . drush_drupal_major_version();
+  //require_once __DIR__ . '/project_tools.' . $version . '.inc';
 }
 
 
