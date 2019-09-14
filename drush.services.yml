@@ -1,0 +1,5 @@
+services:
+  project_tools.commands:
+    class: \Drupal\project_tools\Commands\ProjectToolsCommands
+    tags:
+      - { name: drush.command }
