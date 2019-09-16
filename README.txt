@@ -15,10 +15,10 @@ Use at your own risk.
 
 Requirements
 ------------
-* Drupal 7 or Drupal 8, https://drupal.org
-* Drush 8.x, http://docs.drush.org/en/8.x/
+* Drupal 8, https://drupal.org
+* Drush 9.x, http://docs.drush.org/en/8.x/
+* Drupal Tools 8.x, https://github.com/josereyero/drupal-tools
 * Ansible, https://www.ansible.com/
-* Features, https://www.drupal.org/project/features
 
 Installation
 ------------
@@ -27,8 +27,7 @@ Installation
   composer require reyero/project_tools
 
 * Manual download:
-  * Drupal 7: Download and place under DRUPAL_ROOT/sites/all/drush
-  * Drupal 8: Download and place under DRUPAL_ROOT/drush
+  Download and place under DRUPAL_ROOT/drush/Commands/contrib
 
 Configuration
 -------------
